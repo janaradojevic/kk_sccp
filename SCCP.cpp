@@ -94,11 +94,11 @@ public:
   void visitPHI(PHINode *PHI);
   void visitBinaryOp(Instruction *I);
   void visitCmp(Instruction *I){
-    autoCmp = dyn_cast<CmpInst>(I);
+    auto *Cmp = dyn_cast<CmpInst>(I);
     if (!Cmp) return;
 
-    Value LeftOp = Cmp->getOperand(0);
-    Value RightOp = Cmp->getOperand(1);
+    Value *LeftOp = Cmp->getOperand(0);
+    Value *RightOp = Cmp->getOperand(1);
 
     LatticeVal LeftLV = getLatticeVal(LeftOp);
     LatticeVal RightLV = getLatticeVal(RightOp);
@@ -109,8 +109,8 @@ public:
     }
 
     if (LeftLV.State == LatticeState::Constant && RightLV.State == LatticeState::Constant) {
-        auto LeftCI = dyn_cast<ConstantInt>(LeftLV.Val);
-        auto RightCI = dyn_cast<ConstantInt>(RightLV.Val);
+        auto *LeftCI = dyn_cast<ConstantInt>(LeftLV.Val);
+        auto *RightCI = dyn_cast<ConstantInt>(RightLV.Val);
 
         if (LeftCI && RightCI) {
             APInt LeftVal = LeftCI->getValue();
