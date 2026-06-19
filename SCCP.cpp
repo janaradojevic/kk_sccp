@@ -42,7 +42,24 @@ public:
   }
 
   // TODO: implementirati
-  void markEntryExecutable();
+
+  void markEntryExecutable(){
+    BasicBlock *Entry = &F.getEntryBlock();
+    ExecutableBlocks.insert(Entry);
+    FlowWorklist.push_back(Entry);
+
+  }
+
+  LatticeVal getLatticeVal(Value *V) {
+    if (auto *C = dyn_cast<Constant>(V)) {
+        LatticeVal LV;
+        LV.State = LatticeState::Constant;
+        LV.Val = C;
+        return LV;
+    }
+    return Lattice[V];
+  }
+
   void visitBlock(BasicBlock *BB);
   void visitInstruction(Instruction *I);
   void visitPHI(PHINode *PHI);
