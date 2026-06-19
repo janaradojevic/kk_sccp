@@ -63,6 +63,25 @@ public:
     return Lattice[V];
   }
   
+void markEdgeExecutable(BasicBlock *Source, BasicBlock *Dest) {
+    std::pair<BasicBlock*, BasicBlock*> Edge(Source, Dest);
+    
+    if (KnownFeasibleEdges.find(Edge) != KnownFeasibleEdges.end())
+        return;
+    KnownFeasibleEdges.insert(Edge);
+    
+    if (ExecutableBlocks.find(Dest) == ExecutableBlocks.end()) {
+        ExecutableBlocks.insert(Dest);
+        FlowWorklist.push_back(Dest);
+    } 
+    
+    else {
+        for (PHINode &PN : Dest->phis()) {
+            SSAWorklist.push_back(&PN);
+        }
+    }
+}
+
 
   void visitBlock(BasicBlock *BB){
     for (Instruction &I : *BB) {
@@ -94,8 +113,53 @@ public:
   }
 
  
-  void visitPHI(PHINode *PHI);
-  void visitBinaryOp(Instruction *I);
+  void visitPHI(PHINode *PHI){
+  
+    bool SawConstant = false;
+    bool SawBottom = false;
+    Constant *PhiConst = nullptr;
+
+    for (unsigned i = 0; i < PHI->getNumIncomingValues(); ++i) {
+      BasicBlock *PredBB = PHI->getIncomingBlock(i);
+      Value *InVal = PHI->getIncomingValue(i);
+
+      std::pair<BasicBlock *, BasicBlock *> Edge(PredBB, PHI->getParent());
+      if (KnownFeasibleEdges.find(Edge) == KnownFeasibleEdges.end())
+        continue;
+
+      LatticeVal InLV = getLatticeVal(InVal);
+
+      if (InLV.State == LatticeState::Top) {
+        continue;
+      }
+
+      if (InLV.State == LatticeState::Bottom) {
+        SawBottom = true;
+        break;
+      }
+
+      if (!SawConstant) {
+        SawConstant = true;
+        PhiConst = InLV.Val;
+      } else if (PhiConst != InLV.Val) {
+        SawBottom = true;
+        break;
+      }
+    }
+
+    if (SawBottom) {
+      markOverdefined(PHI);
+    } else if (SawConstant) {
+      markConstant(PHI, PhiConst);
+    }
+  }
+
+
+  void visitBinaryOp(Instruction *I){
+    
+  }
+
+
   void visitCmp(Instruction *I){
     auto *Cmp = dyn_cast<CmpInst>(I);
     if (!Cmp) return;
@@ -124,7 +188,6 @@ public:
 
   }
   void visitBranch(BranchInst *BI){
-    void KKSolver::visitBranch(BranchInst BI) {
     if (BI->isConditional()) {
         Value *Condition = BI->getCondition();
         LatticeVal CondLV = getLatticeVal(Condition);
@@ -156,7 +219,6 @@ public:
         markEdgeExecutable(BI->getParent(), BI->getSuccessor(0));
     }
 }
-  }
 
   
   void markConstant(Value *V, Constant *C){
@@ -184,6 +246,7 @@ public:
   
 
   std::map<Value *, LatticeVal> Lattice;
+  std::set<std::pair<BasicBlock*, BasicBlock*>> KnownFeasibleEdges;
   std::set<BasicBlock *> ExecutableBlocks;
   std::vector<Value *> SSAWorklist;
   std::vector<BasicBlock *> FlowWorklist;
