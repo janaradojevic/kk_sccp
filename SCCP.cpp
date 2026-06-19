@@ -11,7 +11,7 @@ using namespace llvm;
 
 namespace {
 
-// Lattice vrijednost za jedan SSA Value*
+
 enum class LatticeState { Top, Constant, Bottom };
 
 struct LatticeVal {
@@ -62,13 +62,12 @@ public:
   Function &F;
 };
 
-} // namespace
+} 
 
 PreservedAnalyses MySCCPPass::run(Function &F, FunctionAnalysisManager &AM) {
   KKSolver Solver(F);
   Solver.run();
 
-  // TODO: prolaz koji zamjenjuje konstantne instrukcije i čisti dead grane
-
+  // TODO
   return PreservedAnalyses::none();
 }
