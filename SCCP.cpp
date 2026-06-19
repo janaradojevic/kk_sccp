@@ -93,7 +93,42 @@ public:
  
   void visitPHI(PHINode *PHI);
   void visitBinaryOp(Instruction *I);
-  void visitCmp(Instruction *I);
+  void visitCmp(Instruction *I){
+    autoCmp = dyn_cast<CmpInst>(I);
+    if (!Cmp) return;
+
+    Value LeftOp = Cmp->getOperand(0);
+    Value RightOp = Cmp->getOperand(1);
+
+    LatticeVal LeftLV = getLatticeVal(LeftOp);
+    LatticeVal RightLV = getLatticeVal(RightOp);
+
+    if (LeftLV.State == LatticeState::Bottom || RightLV.State == LatticeState::Bottom) {
+        markOverdefined(Cmp);
+        return;
+    }
+
+    if (LeftLV.State == LatticeState::Constant && RightLV.State == LatticeState::Constant) {
+        auto LeftCI = dyn_cast<ConstantInt>(LeftLV.Val);
+        auto RightCI = dyn_cast<ConstantInt>(RightLV.Val);
+
+        if (LeftCI && RightCI) {
+            APInt LeftVal = LeftCI->getValue();
+            APInt RightVal = RightCI->getValue();
+            bool EvaluationResult = false;
+
+            EvaluationResult = CmpInst::evaluatePredicate(Cmp->getPredicate(), LeftVal, RightVal);
+
+            Constant *ResultConstant = ConstantInt::get(Cmp->getType(), EvaluationResult);
+
+            markConstant(Cmp, ResultConstant);
+            return;
+        }
+    }
+
+    // Ako ne možemo odrediti vrednost, ostajemo na Top (nepoznato) i ne radimo ništa.
+
+  }
   void visitBranch(BranchInst *BI);
 
   
