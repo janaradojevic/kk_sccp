@@ -61,9 +61,36 @@ public:
   }
   
 
+  void visitBlock(BasicBlock *BB){
+    for (Instruction &I : *BB) {
+        visitInstruction(&I);
+    }
 
-  void visitBlock(BasicBlock *BB);
-  void visitInstruction(Instruction *I);
+  }
+
+  void visitInstruction(Instruction *I){
+    
+    if (ExecutableBlocks.find(I->getParent()) == ExecutableBlocks.end())
+        return;
+
+    
+    if (I->isBinaryOp()) {
+        visitBinaryOp(I);
+    } else if (auto *Cmp = dyn_cast<CmpInst>(I)) {
+        visitCmp(Cmp);
+    } else if (auto *BI = dyn_cast<BranchInst>(I)) {
+        visitBranch(BI);
+    } else if (auto *PHI = dyn_cast<PHINode>(I)) {
+        visitPHI(PHI);
+    } else if (I->getType()->isVoidTy()) {
+        //is void
+    } else {
+        markOverdefined(I);
+    }
+
+  }
+
+ 
   void visitPHI(PHINode *PHI);
   void visitBinaryOp(Instruction *I);
   void visitCmp(Instruction *I);
