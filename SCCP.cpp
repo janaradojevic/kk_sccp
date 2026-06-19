@@ -2,6 +2,9 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/ConstantFold.h"
 
 #include <map>
 #include <set>
@@ -109,24 +112,15 @@ public:
     }
 
     if (LeftLV.State == LatticeState::Constant && RightLV.State == LatticeState::Constant) {
-        auto *LeftCI = dyn_cast<ConstantInt>(LeftLV.Val);
-        auto *RightCI = dyn_cast<ConstantInt>(RightLV.Val);
+        
+        Constant *ResultConstant = ConstantFoldCompareInstruction(Cmp->getPredicate(), LeftLV.Val, RightLV.Val);
 
-        if (LeftCI && RightCI) {
-            APInt LeftVal = LeftCI->getValue();
-            APInt RightVal = RightCI->getValue();
-            bool EvaluationResult = false;
-
-            EvaluationResult = CmpInst::evaluatePredicate(Cmp->getPredicate(), LeftVal, RightVal);
-
-            Constant *ResultConstant = ConstantInt::get(Cmp->getType(), EvaluationResult);
-
+        if (ResultConstant) {
             markConstant(Cmp, ResultConstant);
             return;
         }
     }
 
-    // Ako ne možemo odrediti vrednost, ostajemo na Top (nepoznato) i ne radimo ništa.
 
   }
   void visitBranch(BranchInst *BI);
