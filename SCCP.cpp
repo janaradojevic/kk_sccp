@@ -59,6 +59,8 @@ public:
     }
     return Lattice[V];
   }
+  
+
 
   void visitBlock(BasicBlock *BB);
   void visitInstruction(Instruction *I);
@@ -67,10 +69,30 @@ public:
   void visitCmp(Instruction *I);
   void visitBranch(BranchInst *BI);
 
-  // Pomoćno
-  LatticeVal getLatticeVal(Value *V);
-  void markConstant(Value *V, Constant *C);
-  void markOverdefined(Value *V);
+  
+  void markConstant(Value *V, Constant *C){
+    LatticeVal &LV = Lattice[V];
+
+    if (LV.State == LatticeState::Top) {
+        LV.State = LatticeState::Constant;
+        LV.Val = C;
+
+        SSAWorklist.push_back(V);
+    
+      }
+  }
+
+  void markOverdefined(Value *V){
+    LatticeVal &LV = Lattice[V];
+
+    if (LV.State != LatticeState::Bottom) {
+        LV.State = LatticeState::Bottom;
+        LV.Val = nullptr; 
+
+        SSAWorklist.push_back(V);
+    }
+}
+  
 
   std::map<Value *, LatticeVal> Lattice;
   std::set<BasicBlock *> ExecutableBlocks;
