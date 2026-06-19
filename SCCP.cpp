@@ -123,7 +123,40 @@ public:
 
 
   }
-  void visitBranch(BranchInst *BI);
+  void visitBranch(BranchInst *BI){
+    void KKSolver::visitBranch(BranchInst BI) {
+    if (BI->isConditional()) {
+        Value *Condition = BI->getCondition();
+        LatticeVal CondLV = getLatticeVal(Condition);
+
+        if (CondLV.State == LatticeState::Top) {
+            return;
+        }
+
+        if (CondLV.State == LatticeState::Constant) {
+            auto *CI = dyn_cast<ConstantInt>(CondLV.Val);
+            if (CI) {
+
+                BasicBlock *TargetBlock = CI->isOne() ? BI->getSuccessor(0) : BI->getSuccessor(1);
+
+                markEdgeExecutable(BI->getParent(), TargetBlock);
+                return;
+            }
+        }
+
+      // ako je stanje Bottom, oznacavamo oba puta kao izvrsiva
+        markOverdefined(BI); 
+        markEdgeExecutable(BI->getParent(), BI->getSuccessor(0));
+        markEdgeExecutable(BI->getParent(), BI->getSuccessor(1));
+        return;
+    } 
+
+    // bezuslovno grananje, označavamo samo jedan put
+    else {
+        markEdgeExecutable(BI->getParent(), BI->getSuccessor(0));
+    }
+}
+  }
 
   
   void markConstant(Value *V, Constant *C){
