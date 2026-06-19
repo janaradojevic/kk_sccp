@@ -156,6 +156,29 @@ void markEdgeExecutable(BasicBlock *Source, BasicBlock *Dest) {
 
 
   void visitBinaryOp(Instruction *I){
+  Value *LHS = I->getOperand(0);
+  Value *RHS = I->getOperand(1);
+
+  LatticeVal LeftLV = getLatticeVal(LHS);
+  LatticeVal RightLV = getLatticeVal(RHS);
+
+  if (LeftLV.State == LatticeState::Bottom || RightLV.State == LatticeState::Bottom) {
+    markOverdefined(I);
+    return;
+  }
+
+  if (LeftLV.State == LatticeState::Constant && RightLV.State == LatticeState::Constant) {
+    Constant *Result = ConstantFoldBinaryInstruction(I->getOpcode(), LeftLV.Val, RightLV.Val);
+
+    if (Result) {
+      markConstant(I, Result);
+    } else {
+      markOverdefined(I);
+    }
+    return;
+  }
+
+  // Kada je bar jedan operand Top, rezultat je Top, ali ne treba ništa raditi jer je to vec stanje u lattice-u.
     
   }
 
