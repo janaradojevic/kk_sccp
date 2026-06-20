@@ -303,7 +303,7 @@ PreservedAnalyses MySCCPPass::run(Function &F, FunctionAnalysisManager &AM) {
 
   bool Changed = false;
 
-  
+  // foldovanje konstanti
   for (auto &Entry : Solver.Lattice) {
     Value *V = Entry.first;
     LatticeVal &LV = Entry.second;
@@ -316,7 +316,7 @@ PreservedAnalyses MySCCPPass::run(Function &F, FunctionAnalysisManager &AM) {
     }
   }
 
-  
+  // brisanje neizvrsivih instrukcija, ako ih niko ne koristi, ako nisu terminatori i ako nemaju side effects
   for (auto &BB : F) {
     for (auto It = BB.begin(); It != BB.end(); ) {
       Instruction &I = *It;
@@ -326,7 +326,7 @@ PreservedAnalyses MySCCPPass::run(Function &F, FunctionAnalysisManager &AM) {
     }
   }
 
- 
+  //foldovanje grananja - ako imamo jednu razresenu granu, zamenjujemo je sa successorom koji odgovara
   for (auto &BB : F) {
     if (auto *BI = dyn_cast<BranchInst>(BB.getTerminator())) {
       if (BI->isConditional()) {
