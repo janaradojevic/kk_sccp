@@ -5,6 +5,8 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/ConstantFold.h"
+#include "llvm/Transforms/Utils/Local.h" 
+#include "llvm/IR/Function.h"
 
 #include <map>
 #include <set>
@@ -27,6 +29,10 @@ public:
   KKSolver(Function &F) : F(F) {}
 
   void run() {
+
+    for (Argument &Arg : F.args())
+    markOverdefined(&Arg);
+
     markEntryExecutable();
     while (!SSAWorklist.empty() || !FlowWorklist.empty()) {
       while (!FlowWorklist.empty()) {
@@ -77,7 +83,8 @@ void markEdgeExecutable(BasicBlock *Source, BasicBlock *Dest) {
     
     else {
         for (PHINode &PN : Dest->phis()) {
-            SSAWorklist.push_back(&PN);
+            //SAWorklist.push_back(&PN);
+            visitPHI(&PN);
         }
     }
 }
@@ -282,6 +289,59 @@ PreservedAnalyses MySCCPPass::run(Function &F, FunctionAnalysisManager &AM) {
   KKSolver Solver(F);
   Solver.run();
 
-  // TODO
-  return PreservedAnalyses::none();
+  for (auto &Entry : Solver.Lattice) {
+  Value *V = Entry.first;
+  LatticeVal &LV = Entry.second;
+  errs() << *V << " => ";
+  if (LV.State == LatticeState::Constant)
+    errs() << "Constant(" << *LV.Val << ")\n";
+  else if (LV.State == LatticeState::Bottom)
+    errs() << "Bottom\n";
+  else
+    errs() << "Top\n";
+}
+
+  bool Changed = false;
+
+  
+  for (auto &Entry : Solver.Lattice) {
+    Value *V = Entry.first;
+    LatticeVal &LV = Entry.second;
+
+    if (LV.State == LatticeState::Constant) {
+      if (isa<Instruction>(V)) {
+        V->replaceAllUsesWith(LV.Val);
+        Changed = true;
+      }
+    }
+  }
+
+  
+  for (auto &BB : F) {
+    for (auto It = BB.begin(); It != BB.end(); ) {
+      Instruction &I = *It;
+      ++It;
+      if (I.use_empty() && !I.isTerminator() && !I.mayHaveSideEffects())
+        I.eraseFromParent();
+    }
+  }
+
+ 
+  for (auto &BB : F) {
+    if (auto *BI = dyn_cast<BranchInst>(BB.getTerminator())) {
+      if (BI->isConditional()) {
+        if (auto *CI = dyn_cast<ConstantInt>(BI->getCondition())) {
+          BasicBlock *Target = CI->isOne() ? BI->getSuccessor(0) : BI->getSuccessor(1);
+          BranchInst::Create(Target, BI);
+          BI->eraseFromParent();
+          Changed = true;
+        }
+      }
+    }
+  }
+
+  
+  Changed |= removeUnreachableBlocks(F);
+
+  return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
