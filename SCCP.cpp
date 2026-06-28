@@ -50,14 +50,13 @@ public:
     }
   }
 
-  // TODO: implementirati
 
   void markEntryExecutable(){
     BasicBlock *Entry = &F.getEntryBlock();
     ExecutableBlocks.insert(Entry);
     FlowWorklist.push_back(Entry);
 
-  }
+  } // uzima prviblok i ubacuje ga u worklistu i set izvrsivih blokova
 
   LatticeVal getLatticeVal(Value *V) {
     if (auto *C = dyn_cast<Constant>(V)) {
@@ -67,7 +66,8 @@ public:
         return LV;
     }
     return Lattice[V];
-  }
+  } // getter za trenunto stanje promenljive u lattice-u
+
   
 void markEdgeExecutable(BasicBlock *Source, BasicBlock *Dest) {
     std::pair<BasicBlock*, BasicBlock*> Edge(Source, Dest);
@@ -122,13 +122,14 @@ void markEdgeExecutable(BasicBlock *Source, BasicBlock *Dest) {
  
   void visitPHI(PHINode *PHI){
   
+    //inicijalizacija flagova
     bool SawConstant = false;
     bool SawBottom = false;
     Constant *PhiConst = nullptr;
 
     for (unsigned i = 0; i < PHI->getNumIncomingValues(); ++i) {
-      BasicBlock *PredBB = PHI->getIncomingBlock(i);
-      Value *InVal = PHI->getIncomingValue(i);
+      BasicBlock *PredBB = PHI->getIncomingBlock(i); // uzimamo granu iz koje dolazi taj value
+      Value *InVal = PHI->getIncomingValue(i); // vrednost koja se razresila u tom kodu
 
       std::pair<BasicBlock *, BasicBlock *> Edge(PredBB, PHI->getParent());
       if (KnownFeasibleEdges.find(Edge) == KnownFeasibleEdges.end())
@@ -145,12 +146,12 @@ void markEdgeExecutable(BasicBlock *Source, BasicBlock *Dest) {
         break;
       }
 
-      if (!SawConstant) {
-        SawConstant = true;
-        PhiConst = InLV.Val;
-      } else if (PhiConst != InLV.Val) {
-        SawBottom = true;
-        break;
+      if (!SawConstant) { //ako je nismo videli do sad,
+        SawConstant = true; //sad je vidimo jer nije ni top ni bottom znaci nema drugi izbor nego da bude constant
+        PhiConst = InLV.Val; //uzimamo njenu vrednost kao vrednost za phi
+      } else if (PhiConst != InLV.Val) { //ako smo je vec videli i opet je vidimo, a NIJE ista
+        SawBottom = true; // nerazresivo je trenutno, imamo konflikt
+        break; // izadji
       }
     }
 
@@ -215,8 +216,8 @@ void markEdgeExecutable(BasicBlock *Source, BasicBlock *Dest) {
         }
     }
 
-
   }
+
   void visitBranch(BranchInst *BI){
     if (BI->isConditional()) {
         Value *Condition = BI->getCondition();
@@ -287,8 +288,9 @@ void markEdgeExecutable(BasicBlock *Source, BasicBlock *Dest) {
 
 PreservedAnalyses MySCCPPass::run(Function &F, FunctionAnalysisManager &AM) {
   KKSolver Solver(F);
-  Solver.run();
+  Solver.run(); //napravi se Lattice i popunjava se sa vrednostima, a takodje se popunjavaju i worklistovi
 
+  //samo ispisivanje lattice-a
   for (auto &Entry : Solver.Lattice) {
   Value *V = Entry.first;
   LatticeVal &LV = Entry.second;
@@ -301,6 +303,7 @@ PreservedAnalyses MySCCPPass::run(Function &F, FunctionAnalysisManager &AM) {
     errs() << "Top\n";
 }
 
+  
   bool Changed = false;
 
   // foldovanje konstanti
@@ -321,10 +324,11 @@ PreservedAnalyses MySCCPPass::run(Function &F, FunctionAnalysisManager &AM) {
     for (auto It = BB.begin(); It != BB.end(); ) {
       Instruction &I = *It;
       ++It;
-      if (I.use_empty() && !I.isTerminator() && !I.mayHaveSideEffects())
+      if (I.use_empty() && !I.isTerminator() && !I.mayHaveSideEffects()) //termirator - grana ili vraca kontrolu i return
         I.eraseFromParent();
+        Changed = true;
     }
-  }
+  } 
 
   //foldovanje grananja - ako imamo jednu razresenu granu, zamenjujemo je sa successorom koji odgovara
   for (auto &BB : F) {
@@ -341,7 +345,8 @@ PreservedAnalyses MySCCPPass::run(Function &F, FunctionAnalysisManager &AM) {
   }
 
   
-  Changed |= removeUnreachableBlocks(F);
+  Changed |= removeUnreachableBlocks(F); //brise sam blok funkcije - kutiju u kojoj su instrukcije
+
 
   return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
